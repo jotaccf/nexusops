@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { verifyToken, COOKIE_NAME } from "../lib/auth";
-import { ROLES } from "../lib/roles";
+import { verifyToken, COOKIE_NAME } from "../../lib/auth";
+import { SessionProvider } from "../../lib/SessionContext";
 
-export default async function Home() {
+export default async function DashboardLayout({ children }) {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
 
@@ -16,6 +16,9 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const role = ROLES[user.role];
-  redirect(role?.dashboardPath || "/login");
+  return (
+    <SessionProvider user={user}>
+      {children}
+    </SessionProvider>
+  );
 }
