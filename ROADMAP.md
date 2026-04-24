@@ -30,6 +30,14 @@ Hub operacional para empresa de distribuição (master importer). Portugal, PT-P
 - [x] Exportação iCal (RFC 5545)
 - [x] Estrutura para integração Wisedat (API config guardada)
 
+## [x] Fase 3.5 — IEC / e-DA (concluída — 2026-04-20)
+
+- [x] Tabela de produtos com massas unitárias (bruta, líquida, tributável)
+- [x] Códigos CTAB por região (CON/RAM/RAA) com upsert
+- [x] Gerador XML e-DA validado no portal da AT
+- [x] Modal 2 passos: artigos + dados documento/transporte
+- [x] Seed 26 produtos (ELFBAR 600, LOST MARY BM600, ELFBAR CR600)
+
 ## [ ] Fase 4 — Funcionalidades avançadas
 
 - [ ] Edição inline de encomendas e leads

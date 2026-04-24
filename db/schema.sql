@@ -111,6 +111,39 @@ CREATE TABLE IF NOT EXISTS system_config (
 );
 
 -- --------------------------------------------------------
+-- Produtos (artigos sujeitos a IEC)
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS products (
+  id               SERIAL PRIMARY KEY,
+  sku              VARCHAR(50)   UNIQUE NOT NULL,
+  nome             VARCHAR(200)  NOT NULL,
+  descricao        TEXT,
+  unidade          VARCHAR(20)   DEFAULT 'un',
+  massa_bruta      NUMERIC(12,4),
+  massa_liquida    NUMERIC(12,4),
+  massa_tributavel NUMERIC(12,4),
+  active           BOOLEAN       DEFAULT true,
+  created_at       TIMESTAMPTZ   DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- --------------------------------------------------------
+-- Códigos CTAB por região (IEC — Imposto Especial de Consumo)
+-- Cada produto pode ter 3 códigos CTAB: CON, RAM, RAA
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS product_ctab (
+  id              SERIAL PRIMARY KEY,
+  product_id      INTEGER       NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  regiao          VARCHAR(3)    NOT NULL CHECK (regiao IN ('CON', 'RAM', 'RAA')),
+  ctab_code       VARCHAR(50)   NOT NULL,
+  descricao       VARCHAR(200),
+  taxa            NUMERIC(12,4),
+  unidade_iec     VARCHAR(20),
+  updated_at      TIMESTAMPTZ   DEFAULT NOW(),
+  UNIQUE(product_id, regiao)
+);
+
+-- --------------------------------------------------------
 -- Migração: IMAP pessoal por utilizador (colunas opcionais)
 -- --------------------------------------------------------
 ALTER TABLE users ADD COLUMN IF NOT EXISTS imap_host     VARCHAR(255);
@@ -126,3 +159,6 @@ CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_id);
 CREATE INDEX IF NOT EXISTS idx_cal_date       ON calendar_events(date);
 CREATE INDEX IF NOT EXISTS idx_orders_estado  ON orders(estado);
 CREATE INDEX IF NOT EXISTS idx_leads_estado   ON leads(estado);
+CREATE INDEX IF NOT EXISTS idx_products_sku   ON products(sku);
+CREATE INDEX IF NOT EXISTS idx_ctab_product   ON product_ctab(product_id);
+CREATE INDEX IF NOT EXISTS idx_ctab_regiao    ON product_ctab(regiao);

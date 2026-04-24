@@ -4,6 +4,24 @@ Formato: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.3.0] — 2026-04-20
+
+### Added
+- Gestão de produtos IEC com códigos CTAB por região (CON/RAM/RAA)
+- Tabelas BD: `products` (sku, nome, massas unitárias) e `product_ctab` (código CTAB, taxa, unidade IEC)
+- API completa: `/api/products` (CRUD), `/api/products/[id]/ctab` (upsert/delete por região)
+- Gerador de e-DA (Documento Administrativo Eletrónico) para o portal da AT
+- API `/api/eda` — gera XML eDAA com encoding ISO-8859-1, download automático
+- Modal e-DA em 2 passos: selecção de artigos + dados de documento/transporte
+- Campos automáticos: data expedição (hoje+1), finalidade (1 CON / 2 ilhas), NIF prefixo (01/02)
+- 26 produtos seed com CTAB para 3 regiões (ELFBAR 600, LOST MARY BM600, ELFBAR CR600)
+- Secção de gestão de produtos no dashboard de configuração com edição inline CTAB
+
+### Fixed
+- Nomenclatura "ELFBAR600" corrigida para "ELFBAR 600" (com espaço)
+
+---
+
 ## [0.2.0] — 2026-04-20
 
 ### Added

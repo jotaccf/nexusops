@@ -67,6 +67,13 @@ const PERFIS = [
 const IMAP_DEFAULTS     = { host: "", port: "993", user: "", password: "", tls: true };
 const WISEDAT_DEFAULTS  = { url: "", apiKey: "", username: "", password: "" };
 const NOVO_USER_DEFAULTS = { name: "", email: "", password: "", role: "logistica", imap_host: "", imap_port: "993", imap_user: "", imap_password: "", imap_tls: true };
+const PRODUCT_DEFAULTS  = { sku: "", nome: "", descricao: "", unidade: "un" };
+
+const ctabInputStyle = {
+  width: "100%", padding: "7px 10px", fontSize: 12,
+  background: COLORS.surface, border: `1px solid ${COLORS.border}`,
+  borderRadius: 6, color: COLORS.text, outline: "none", boxSizing: "border-box",
+};
 
 export default function DashboardConfig() {
   const [userList, setUserList]     = useState([]);
@@ -81,7 +88,74 @@ export default function DashboardConfig() {
     fetch("/api/users").then(r => r.ok ? r.json() : []).then(d => setUserList(d || []));
   }
 
-  useEffect(() => { reloadUsers(); }, []);
+  // ─── Produtos / CTAB ────────────────────────────────────────
+  const [products, setProducts]           = useState([]);
+  const [expandedProduct, setExpandedProduct] = useState(null);
+  const [productModal, setProductModal]   = useState(false);
+  const [novoProduct, setNovoProduct]     = useState(PRODUCT_DEFAULTS);
+  const [productSaving, setProductSaving] = useState(false);
+  const [productErr, setProductErr]       = useState("");
+
+  function reloadProducts() {
+    fetch("/api/products").then(r => r.ok ? r.json() : []).then(d => setProducts(d || []));
+  }
+
+  useEffect(() => { reloadUsers(); reloadProducts(); }, []);
+
+  async function handleCreateProduct() {
+    setProductSaving(true);
+    setProductErr("");
+    try {
+      const r = await fetch("/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(novoProduct) });
+      const data = await r.json();
+      if (!r.ok) { setProductErr(data.error || `Erro ${r.status}`); return; }
+      setProductModal(false);
+      setNovoProduct(PRODUCT_DEFAULTS);
+      reloadProducts();
+    } catch (err) { setProductErr(err.message); }
+    finally { setProductSaving(false); }
+  }
+
+  async function handleProductField(id, fields) {
+    await fetch(`/api/products/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    });
+    reloadProducts();
+  }
+
+  async function handleDeleteProduct(id) {
+    await fetch(`/api/products/${id}`, { method: "DELETE" });
+    reloadProducts();
+  }
+
+  async function handleCtabSave(productId, regiao, ctab_code, existing) {
+    if (!ctab_code && !existing) return;
+    if (!ctab_code && existing) {
+      await fetch(`/api/products/${productId}/ctab?regiao=${regiao}`, { method: "DELETE" });
+      reloadProducts();
+      return;
+    }
+    await fetch(`/api/products/${productId}/ctab`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ regiao, ctab_code, descricao: existing?.descricao, taxa: existing?.taxa, unidade_iec: existing?.unidade_iec }),
+    });
+    reloadProducts();
+  }
+
+  async function handleCtabField(productId, regiao, fields) {
+    const product = products.find(p => p.id === productId);
+    const existing = (product?.ctab || []).find(c => c.regiao === regiao);
+    if (!existing) return;
+    await fetch(`/api/products/${productId}/ctab`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ regiao, ctab_code: existing.ctab_code, ...fields }),
+    });
+    reloadProducts();
+  }
 
   async function criarUser() {
     setUserSaving(true);
@@ -897,6 +971,189 @@ export default function DashboardConfig() {
           </div>
         )}
       </Card>
+
+      {/* ─────── Gestão de Produtos / CTAB (IEC) ─────── */}
+      <Card style={{ marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <SectionHeader title="Produtos — Códigos CTAB (IEC)" />
+          <button
+            onClick={() => { setProductModal(true); setNovoProduct(PRODUCT_DEFAULTS); setProductErr(""); }}
+            style={{ padding: "6px 14px", fontSize: 12, fontWeight: 500, color: COLORS.teal, background: COLORS.tealDim, border: `1px solid ${COLORS.teal}30`, borderRadius: 8, cursor: "pointer" }}
+          >
+            + Novo produto
+          </button>
+        </div>
+
+        {/* Lista de produtos */}
+        {products.length === 0 ? (
+          <div style={{ fontSize: 13, color: COLORS.textMuted }}>Sem produtos registados.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {products.map(p => (
+              <div
+                key={p.id}
+                style={{
+                  border: `1px solid ${expandedProduct === p.id ? COLORS.teal : COLORS.border}`,
+                  borderRadius: 10, overflow: "hidden", transition: "border-color 0.15s",
+                }}
+              >
+                {/* Linha resumo */}
+                <div
+                  onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "10px 14px", cursor: "pointer",
+                    background: expandedProduct === p.id ? COLORS.elevated : "transparent",
+                    transition: "background 0.15s",
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontFamily: mono, color: COLORS.textMuted, width: 80, flexShrink: 0 }}>{p.sku}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.text, flex: 1 }}>{p.nome}</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["CON", "RAM", "RAA"].map(r => {
+                      const has = (p.ctab || []).some(c => c.regiao === r);
+                      return (
+                        <span key={r} style={{
+                          fontSize: 10, fontFamily: mono, padding: "2px 6px", borderRadius: 4,
+                          background: has ? COLORS.tealDim : COLORS.elevated,
+                          color: has ? COLORS.teal : COLORS.textDim,
+                          border: `1px solid ${has ? COLORS.teal + "40" : COLORS.border}`,
+                        }}>{r}</span>
+                      );
+                    })}
+                  </div>
+                  <span style={{ fontSize: 13, color: COLORS.textDim }}>{expandedProduct === p.id ? "▾" : "›"}</span>
+                </div>
+
+                {/* Painel expandido — CTAB por região */}
+                {expandedProduct === p.id && (
+                  <div style={{ padding: "0 14px 14px", borderTop: `1px solid ${COLORS.border}` }}>
+                    {/* Massas unitárias — ao nível do produto */}
+                    <div style={{ marginTop: 12, marginBottom: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text, marginBottom: 6 }}>Massas unitárias (kg)</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: 10, color: COLORS.textDim, display: "block", marginBottom: 2 }}>Bruta</label>
+                          <input type="number" step="0.0001" placeholder="0.0000" defaultValue={p.massa_bruta || ""} onBlur={e => handleProductField(p.id, { massa_bruta: e.target.value || null })} style={ctabInputStyle} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: 10, color: COLORS.textDim, display: "block", marginBottom: 2 }}>Líquida</label>
+                          <input type="number" step="0.0001" placeholder="0.0000" defaultValue={p.massa_liquida || ""} onBlur={e => handleProductField(p.id, { massa_liquida: e.target.value || null })} style={ctabInputStyle} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: 10, color: COLORS.textDim, display: "block", marginBottom: 2 }}>Tributável</label>
+                          <input type="number" step="0.0001" placeholder="0.0000" defaultValue={p.massa_tributavel || ""} onBlur={e => handleProductField(p.id, { massa_tributavel: e.target.value || null })} style={ctabInputStyle} />
+                        </div>
+                      </div>
+                    </div>
+                    {/* CTAB por região */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                      {["CON", "RAM", "RAA"].map(regiao => {
+                        const existing = (p.ctab || []).find(c => c.regiao === regiao);
+                        const regiaoLabel = regiao === "CON" ? "Continente" : regiao === "RAM" ? "Madeira" : "Açores";
+                        return (
+                          <div key={regiao} style={{ padding: 12, background: COLORS.elevated, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>
+                              {regiaoLabel} <span style={{ fontSize: 10, fontFamily: mono, color: COLORS.textDim }}>({regiao})</span>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              <input
+                                placeholder="Código CTAB"
+                                defaultValue={existing?.ctab_code || ""}
+                                onBlur={e => handleCtabSave(p.id, regiao, e.target.value, existing)}
+                                style={{ ...ctabInputStyle }}
+                              />
+                              <input
+                                placeholder="Descrição"
+                                defaultValue={existing?.descricao || ""}
+                                onBlur={e => {
+                                  if (existing) handleCtabField(p.id, regiao, { descricao: e.target.value });
+                                }}
+                                style={{ ...ctabInputStyle }}
+                              />
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <input
+                                  placeholder="Taxa"
+                                  type="number"
+                                  step="0.01"
+                                  defaultValue={existing?.taxa || ""}
+                                  onBlur={e => {
+                                    if (existing) handleCtabField(p.id, regiao, { taxa: e.target.value || null });
+                                  }}
+                                  style={{ ...ctabInputStyle, flex: 1 }}
+                                />
+                                <input
+                                  placeholder="Un. IEC"
+                                  defaultValue={existing?.unidade_iec || ""}
+                                  onBlur={e => {
+                                    if (existing) handleCtabField(p.id, regiao, { unidade_iec: e.target.value });
+                                  }}
+                                  style={{ ...ctabInputStyle, flex: 1 }}
+                                />
+                              </div>
+                            </div>
+                            {existing && (
+                              <div style={{ fontSize: 10, color: COLORS.teal, marginTop: 6, fontFamily: mono }}>
+                                ✓ {existing.ctab_code}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Acções do produto */}
+                    <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
+                      <button
+                        onClick={() => handleDeleteProduct(p.id)}
+                        style={{ padding: "5px 12px", fontSize: 11, color: COLORS.coral, background: "transparent", border: `1px solid ${COLORS.coral}40`, borderRadius: 6, cursor: "pointer" }}
+                      >Eliminar produto</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Modal: novo produto */}
+      {productModal && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={e => { if (e.target === e.currentTarget) setProductModal(false); }}
+        >
+          <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 28, width: 420, maxWidth: "92vw" }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: COLORS.text, marginBottom: 20, margin: 0 }}>Novo produto</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>SKU *</label>
+                <input value={novoProduct.sku} onChange={e => setNovoProduct(p => ({ ...p, sku: e.target.value }))} style={ctabInputStyle} placeholder="Ex: AX-440" autoFocus />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>Nome *</label>
+                <input value={novoProduct.nome} onChange={e => setNovoProduct(p => ({ ...p, nome: e.target.value }))} style={ctabInputStyle} placeholder="Nome do produto" />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>Descrição</label>
+                <input value={novoProduct.descricao} onChange={e => setNovoProduct(p => ({ ...p, descricao: e.target.value }))} style={ctabInputStyle} placeholder="Descrição (opcional)" />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>Unidade</label>
+                <input value={novoProduct.unidade} onChange={e => setNovoProduct(p => ({ ...p, unidade: e.target.value }))} style={ctabInputStyle} placeholder="un, kg, lt..." />
+              </div>
+              {productErr && <div style={{ fontSize: 12, color: COLORS.coral }}>{productErr}</div>}
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button
+                  onClick={handleCreateProduct}
+                  disabled={productSaving || !novoProduct.sku || !novoProduct.nome}
+                  style={{ flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600, background: COLORS.teal, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", opacity: productSaving ? 0.6 : 1 }}
+                >{productSaving ? "A criar…" : "Criar produto"}</button>
+                <button onClick={() => setProductModal(false)} style={{ padding: "9px 18px", fontSize: 13, color: COLORS.textMuted, background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: "pointer" }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
