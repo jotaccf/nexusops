@@ -1,0 +1,16 @@
+# Overrides para produção — usar com:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+services:
+
+  postgres:
+    restart: always
+    ports: []                  # não expor a porta fora do container em produção
+
+  app:
+    restart: always
+    environment:
+      NODE_ENV: production
+    # Em produção colocar atrás de um reverse proxy (nginx/caddy)
+    ports:
+      - "127.0.0.1:3030:3000"  # só acessível localmente pelo proxy
