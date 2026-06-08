@@ -38,6 +38,15 @@ Hub operacional para empresa de distribuição (master importer). Portugal, PT-P
 - [x] Modal 2 passos: artigos + dados documento/transporte
 - [x] Seed 26 produtos (ELFBAR 600, LOST MARY BM600, ELFBAR CR600)
 
+## [x] Fase 3.6 — Gestão dedicada de artigos (concluída — 2026-06-08)
+
+- [x] Página `/dashboard/artigos` com layout master-detail
+- [x] Filtros, semáforo de prontidão, KPIs
+- [x] Auto-save on blur, eliminação com confirmação dupla
+- [x] RBAC: gestor read-only, admin com edição completa
+- [x] Correcção bug PT01 no NIF expedidor do e-DA
+- [x] Limpeza de config/page.js (1159 → 977 linhas)
+
 ## [ ] Fase 4 — Funcionalidades avançadas
 
 - [ ] Edição inline de encomendas e leads

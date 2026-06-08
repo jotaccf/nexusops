@@ -31,9 +31,8 @@ export async function POST(request) {
   const tipoExpedicao = isIlhas ? "1" : "3";
   const anoFatura = dataFatura ? dataFatura.split("-")[0] : new Date().getFullYear().toString();
 
-  // NIF expedidor
-  const prefixoExp = isIlhas ? "02" : "01";
-  const nifExpedidor = `PT${prefixoExp}${nifBase}`;
+  // NIF expedidor — sempre PT01 (a empresa expedidora é sempre do Continente)
+  const nifExpedidor = `PT01${nifBase}`;
 
   // Carregar produtos com CTAB
   const adicoes = [];

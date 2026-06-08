@@ -144,6 +144,52 @@ async function seed() {
   `;
   console.log("✓ Eventos de calendário");
 
+  // ── Produtos IEC + CTAB por região ────────────────────────────────────────
+  const PRODUTOS_IEC = [
+    { nome: 'ELFBAR 600 APPLE PEACH 20MG',                 con: 'B60212C0', ram: 'B12045M0', raa: 'B04972A0' },
+    { nome: 'ELFBAR 600 BLUE RAZZ LEMONADE 20MG',          con: 'B60208C0', ram: 'B12041M0', raa: 'B05075A0' },
+    { nome: 'ELFBAR 600 BLUEBERRY 20MG',                   con: 'B60202C0', ram: 'B12035M0', raa: 'B04962A0' },
+    { nome: 'ELFBAR 600 BLUEBERRY SOUR RASPBERRY 20MG',    con: 'B60226C0', ram: 'B12059M0', raa: 'B04986A0' },
+    { nome: 'ELFBAR 600 KIWI PASSION FRUIT GUAVA 20MG',    con: 'B60209C0', ram: 'B12042M0', raa: 'B04969A0' },
+    { nome: 'ELFBAR 600 MANGO 20MG',                       con: 'B60206C0', ram: 'B12039M0', raa: 'B04966A0' },
+    { nome: 'ELFBAR 600 PEACH ICE 20MG',                   con: 'B60221C0', ram: 'B12054M0', raa: 'B04981A0' },
+    { nome: 'ELFBAR 600 PINK LEMONADE 20MG',               con: 'B60210C0', ram: 'B12043M0', raa: 'B04970A0' },
+    { nome: 'ELFBAR 600 SPEARMINT 20MG',                   con: 'B60219C0', ram: 'B12052M0', raa: 'B04979A0' },
+    { nome: 'ELFBAR 600 STRAWBERRY ICE 20MG',              con: 'B60201C0', ram: 'B12034M0', raa: 'B04961A0' },
+    { nome: 'ELFBAR 600 STRAWBERRY KIWI 20MG',             con: 'B60225C0', ram: 'B12058M0', raa: 'B04985A0' },
+    { nome: 'ELFBAR 600 WATERMELON 20MG',                  con: 'B60204C0', ram: 'B12037M0', raa: 'B04964A0' },
+    { nome: 'LOST MARY BM600 - Blueberry 20mg',            con: 'B60534C0', ram: 'B12125M0', raa: 'B05018A0' },
+    { nome: 'LOST MARY BM600 - Blueberry Sour Raspberry 20mg', con: 'B60535C0', ram: 'B12126M0', raa: 'B05019A0' },
+    { nome: 'LOST MARY BM600 - Kiwi Passionfruit Guava 20mg',  con: 'B60539C0', ram: 'B12130M0', raa: 'B05023A0' },
+    { nome: 'LOST MARY BM600 - Pink Lemonade 20mg',        con: 'B60540C0', ram: 'B12131M0', raa: 'B05024A0' },
+    { nome: 'LOST MARY BM600 - Strawberry Ice 20mg',       con: 'B60541C0', ram: 'B12132M0', raa: 'B05025A0' },
+    { nome: 'LOST MARY BM600 - Triple Mango 20mg',         con: 'B60542C0', ram: 'B12133M0', raa: 'B05026A0' },
+    { nome: 'LOST MARY BM600 - Triple Melon 20mg',         con: 'B60543C0', ram: 'B12134M0', raa: 'B05027A0' },
+    { nome: 'LOST MARY BM600 - Watermelon Ice 20mg',       con: 'B60544C0', ram: 'B12135M0', raa: 'B05028A0' },
+    { nome: 'ELFBAR CR600 - BLUE RAZZ LEMONADE 20 mg (2ml)', con: 'B60662C0', ram: 'B12220M0', raa: 'B05047A0' },
+    { nome: 'ELFBAR CR600 - LEMON LIME 20 mg (2ml)',       con: 'B60671C0', ram: 'B12229M0', raa: 'B05056A0' },
+    { nome: 'ELFBAR CR600 - MENTHOL 20 mg (2ml)',          con: 'B60672C0', ram: 'B12230M0', raa: 'B05057A0' },
+    { nome: 'ELFBAR CR600 - STRAWBERRY ICE 20 mg (2ml)',   con: 'B60684C0', ram: 'B12242M0', raa: 'B05069A0' },
+    { nome: 'ELFBAR CR600 - TRIPLE MANGO 20 mg (2ml)',     con: 'B60687C0', ram: 'B12245M0', raa: 'B05072A0' },
+    { nome: 'ELFBAR CR600 - WATERMELON 20 mg (2ml)',       con: 'B60689C0', ram: 'B12247M0', raa: 'B05074A0' },
+  ];
+  for (const p of PRODUTOS_IEC) {
+    const [row] = await sql`
+      INSERT INTO products (sku, nome, descricao, unidade, massa_bruta, massa_liquida, massa_tributavel)
+      VALUES (${p.nome}, ${p.nome}, ${p.nome}, 'un', 0.0375, 0.035, 0.002)
+      ON CONFLICT (sku) DO NOTHING
+      RETURNING id
+    `;
+    if (!row) continue; // já existe, skip CTAB
+    for (const [reg, code] of [['CON', p.con], ['RAM', p.ram], ['RAA', p.raa]]) {
+      await sql`
+        INSERT INTO product_ctab (product_id, regiao, ctab_code) VALUES (${row.id}, ${reg}, ${code})
+        ON CONFLICT (product_id, regiao) DO NOTHING
+      `;
+    }
+  }
+  console.log(`✓ Produtos IEC (${PRODUTOS_IEC.length} produtos, ${PRODUTOS_IEC.length * 3} CTAB)`);
+
   console.log("\n✅ Seed concluído.");
   console.log("   Contas disponíveis (password: nexus2026):");
   console.log("   admin     → ana@empresa.pt");

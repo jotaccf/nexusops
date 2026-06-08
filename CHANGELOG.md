@@ -4,6 +4,29 @@ Formato: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.4.0] — 2026-06-08
+
+### Added
+- Página dedicada `/dashboard/artigos` para gestão completa de produtos IEC
+- Layout master-detail: tabela com semáforo de prontidão + drawer lateral de edição
+- KPIs: total, activos, prontos para e-DA, sem CTAB completo
+- Filtros: pesquisa livre, marca (ELFBAR/LOST MARY/ELFBAR CR), região sem CTAB, toggle inactivos
+- Auto-save on blur com timestamp "✓ Guardado às HH:MM:SS"
+- Eliminação com confirmação dupla (digitar SKU)
+- Edição inline de todos os campos: SKU, nome, descrição, unidade, estado, massas, CTAB por região
+- RBAC: gestor em modo read-only, admin com edição completa
+- Entrada "Artigos" no menu lateral (admin + gestor)
+- Seed.js inclui 26 produtos IEC com CTAB completo para CON/RAM/RAA
+
+### Changed
+- Secção de produtos removida de `/dashboard/config` (substituída por atalho "Gerir artigos →")
+- `config/page.js` reduzido de 1159 para 977 linhas
+
+### Fixed
+- NIF do expedidor (Q02-01) no e-DA: sempre `PT01` independentemente do destino (era `PT02` para ilhas — bug que invalidava XML)
+
+---
+
 ## [0.3.0] — 2026-04-20
 
 ### Added

@@ -15,11 +15,13 @@ const TABS_BY_ROLE = {
   ],
   gestor: [
     { id: "admin",     label: "Vista geral",  href: "/dashboard/admin" },
+    { id: "artigos",   label: "Artigos",      href: "/dashboard/artigos" },
     { id: "calendario", label: "Calendário",  href: "/dashboard/calendario" },
   ],
   admin: [
     { id: "logistica", label: "Logística",    href: "/dashboard/logistica" },
     { id: "admin",     label: "Administração", href: "/dashboard/admin" },
+    { id: "artigos",   label: "Artigos",      href: "/dashboard/artigos" },
     { id: "config",    label: "Configuração", href: "/dashboard/config" },
     { id: "calendario", label: "Calendário",  href: "/dashboard/calendario" },
   ],
