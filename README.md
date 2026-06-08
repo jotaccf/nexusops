@@ -1,41 +1,53 @@
 # NexusOps — Hub Operacional
 
-Hub operacional para empresa de distribuição (master importer). Construído em Next.js 14 com App Router.
+Hub operacional para empresa de distribuição (master importer), com geração de e-DA para a Autoridade Tributária portuguesa.
 
----
-
-## Requisitos
-
-- Node >= 18
-- npm >= 9
+**Stack:** Next.js 16 (App Router) · JavaScript · PostgreSQL 17 · Docker · imapflow
 
 ---
 
 ## Instalação
 
+### 🟢 Para iniciantes (passo-a-passo com explicações detalhadas)
+
+👉 **[docs/INSTALL.md](docs/INSTALL.md)** — guia completo desde a instalação do Docker até ao primeiro login.
+
+### ⚡ Para utilizadores avançados
+
 ```bash
-npm install
-npm run dev
+git clone https://github.com/jotaccf/nexusops.git
+cd nexusops
+cp .env.example .env       # editar POSTGRES_PASSWORD e JWT_SECRET
+docker compose up -d --build
 ```
 
-A aplicação arranca em [http://localhost:3000](http://localhost:3000).
+Acessível em **http://localhost:3030**. Ver [docs/DEPLOY.md](docs/DEPLOY.md) para opções de produção.
 
 ---
 
-## Configuração IMAP (opcional)
+## Funcionalidades
 
-Para ligar a uma caixa de email real, cria um ficheiro `.env.local` na raiz do projecto:
+- **Dashboards por role** — Logística, Administração, Calendário, Configuração
+- **Autenticação JWT** com 3 roles (admin / gestor / logística)
+- **Gestão de utilizadores** com IMAP pessoal opcional
+- **Calendário** com tarefas e atribuição por operador
+- **Email IMAP** integrado (global + pessoal)
+- **Exportação iCal** (RFC 5545)
+- **Gestão de produtos IEC** com códigos CTAB por região (CON/RAM/RAA)
+- **Geração de e-DA** (Documento Administrativo Eletrónico) — XML para portal da AT
 
-```env
-IMAP_HOST=mail.exemplo.pt
-IMAP_PORT=993
-IMAP_USER=operacoes@exemplo.pt
-IMAP_PASSWORD=password
-IMAP_TLS=true
-IMAP_POLL_INTERVAL=60
-```
+---
 
-Sem este ficheiro, o widget de email funciona em **modo demo** com dados de exemplo.
+## Contas pré-criadas (seed)
+
+Password: `nexus2026`
+
+| Email | Role |
+|---|---|
+| ana@empresa.pt | admin |
+| pedro@empresa.pt | gestor |
+| carlos@empresa.pt | logística |
+| rita@empresa.pt | logística |
 
 ---
 
@@ -44,57 +56,31 @@ Sem este ficheiro, o widget de email funciona em **modo demo** com dados de exem
 ```
 nexusops/
 ├── app/
-│   ├── layout.js                    — Root layout (fonts, favicon)
-│   ├── globals.css                  — Reset, animações, scrollbar
-│   ├── page.js                      — Redireciona para dashboard do role atual
-│   ├── dashboard/
-│   │   ├── logistica/page.js        — Dashboard Logística
-│   │   ├── admin/page.js            — Dashboard Administração
-│   │   ├── config/page.js           — Dashboard Configuração
-│   │   └── calendario/page.js       — Calendário + Tarefas
-│   └── api/
-│       ├── mail/route.js            — API IMAP (emails não lidos)
-│       └── cal/ical/route.js        — API geração .ics
-├── components/
-│   ├── shared.js                    — Design system (Badge, Card, KPICard, …)
-│   ├── AppShell.jsx                 — Header + nav por role
-│   ├── Logo.jsx                     — LogoIcon, LogoFull, LogoHeader
-│   ├── MailWidget.jsx               — Widget email IMAP com auto-refresh
-│   └── TasksWidget.jsx              — Widget compacto de tarefas
+│   ├── api/                  — Routes (auth, users, tasks, products, eda, mail, ical, ...)
+│   ├── dashboard/            — Páginas por role (logistica, admin, calendario, config, artigos)
+│   └── login/                — Página de login
+├── components/               — AppShell, MailWidget, shared (Card/Badge/KPICard/...)
 ├── lib/
-│   ├── colors.js                    — COLORS, font, mono
-│   ├── roles.js                     — Roles e permissões
-│   └── mockData.js                  — Dados mock centralizados
-├── public/
-│   └── favicon.svg                  — Favicon Hex Hub
-└── docs/                            — Especificação completa
+│   ├── auth.js               — JWT
+│   ├── db.js + db/           — Cliente postgres + módulos por entidade
+│   ├── roles.js              — RBAC
+│   └── dateUtils.js          — Timezone Europe/Lisbon
+├── db/
+│   ├── schema.sql            — Schema PostgreSQL (idempotente)
+│   └── seed.js               — Dados iniciais (utilizadores, 26 produtos IEC, etc.)
+├── docs/
+│   ├── INSTALL.md            — Guia de instalação passo-a-passo
+│   └── DEPLOY.md             — Deploy técnico e produção
+├── docker-compose.yml        — Stack PostgreSQL + Next.js
+├── Dockerfile                — Multi-stage build (deps → builder → runner)
+└── entrypoint.sh             — Schema + seed automático no arranque
 ```
 
 ---
 
-## Como alterar o role para testar
+## Links
 
-Abrir `lib/mockData.js` e alterar o valor de `CURRENT_USER.role`:
-
-```js
-export const CURRENT_USER = {
-  id: "user-1", name: "Ana Duarte", initials: "AD",
-  role: "config",  // "logistica" | "admin" | "config"
-  email: "ana@empresa.pt"
-};
-```
-
-| Role | Dashboard | Acesso |
-|------|-----------|--------|
-| `logistica` | `/dashboard/logistica` | Armazém, picking, stock, expedição |
-| `admin` | `/dashboard/admin` | Leads, docs fiscais, parceiros, encomendas |
-| `config` | `/dashboard/config` | Todos os dashboards + utilizadores + integrações |
-
----
-
-## APIs
-
-| Rota | Descrição |
-|------|-----------|
-| `GET /api/mail` | Emails não lidos via IMAP. Modo demo se não configurado. |
-| `GET /api/cal/ical?token=TOKEN` | Exporta calendário em formato .ics (RFC 5545) |
+- **Repo:** https://github.com/jotaccf/nexusops
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+- **Roadmap:** [ROADMAP.md](ROADMAP.md)
+- **Versão actual:** ver [package.json](package.json)
