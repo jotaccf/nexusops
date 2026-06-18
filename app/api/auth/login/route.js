@@ -46,10 +46,15 @@ export async function POST(request) {
   const role       = ROLES[user.role];
   const redirectTo = role?.dashboardPath || "/dashboard/config";
 
+  // Detectar HTTPS dinamicamente — Safari rejeita cookies "secure" em HTTP
+  const url = new URL(request.url);
+  const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
+  const isHttps = proto === "https";
+
   const response = NextResponse.json({ redirectTo });
   response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure:   process.env.NODE_ENV === "production",
+    secure:   isHttps,
     sameSite: "lax",
     maxAge:   COOKIE_MAX_AGE,
     path:     "/",
