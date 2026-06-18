@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { COLORS, font, mono } from "../../lib/colors";
+import { COLORS, font } from "../../lib/colors";
 import { LogoFull } from "../../components/Logo";
 
 export default function LoginPage() {
@@ -181,35 +181,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Credenciais demo */}
-        <div
-          style={{
-            marginTop: 24,
-            padding: "16px 20px",
-            background: COLORS.surface,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: 12,
-          }}
-        >
-          <p style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Credenciais demo
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {[
-              { email: "ana@empresa.pt",    role: "Configuração" },
-              { email: "carlos@empresa.pt", role: "Logística"    },
-              { email: "pedro@empresa.pt",  role: "Admin — inativo" },
-            ].map(u => (
-              <div key={u.email} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, fontFamily: mono, color: COLORS.textMuted }}>{u.email}</span>
-                <span style={{ fontSize: 11, color: COLORS.textDim }}>{u.role}</span>
-              </div>
-            ))}
-          </div>
-          <p style={{ fontSize: 11, color: COLORS.textDim, marginTop: 10 }}>
-            Password: <span style={{ fontFamily: mono, color: COLORS.textMuted }}>nexus2026</span>
-          </p>
-        </div>
       </div>
     </div>
   );
