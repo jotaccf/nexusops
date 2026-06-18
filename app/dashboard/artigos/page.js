@@ -62,6 +62,13 @@ export default function DashboardArtigos() {
   const [createSaving, setCreateSaving] = useState(false);
   const [createErr, setCreateErr]   = useState("");
 
+  // Modal importar
+  const [importOpen, setImportOpen]       = useState(false);
+  const [importFile, setImportFile]       = useState(null);
+  const [importPreview, setImportPreview] = useState(null); // { summary, errors, preview }
+  const [importing, setImporting]         = useState(false);
+  const [importErr, setImportErr]         = useState("");
+
   // Status save (drawer)
   const [savedAt, setSavedAt] = useState(null);
 
@@ -186,6 +193,26 @@ export default function DashboardArtigos() {
     }
   }
 
+  async function doImport(dryRun) {
+    if (!importFile) return;
+    setImporting(true);
+    setImportErr("");
+    try {
+      const fd = new FormData();
+      fd.append("file", importFile);
+      fd.append("dryRun", String(dryRun));
+      const res = await fetch("/api/products/import", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) { setImportErr(data.error || "Erro"); return; }
+      setImportPreview(data);
+      if (!dryRun) {
+        // após import real, recarregar lista
+        setTimeout(() => reload(), 300);
+      }
+    } catch (e) { setImportErr(e.message); }
+    finally { setImporting(false); }
+  }
+
   async function deleteProduct(id, sku) {
     const confirm = prompt(`Para eliminar este produto, escreve o SKU exacto:\n${sku}`);
     if (confirm !== sku) {
@@ -233,6 +260,28 @@ export default function DashboardArtigos() {
               <input type="checkbox" checked={showInactivos} onChange={e => setShowInactivos(e.target.checked)} />
               Mostrar inactivos
             </label>
+            <a
+              href="/api/products/export"
+              download
+              style={{
+                padding: "7px 12px", fontSize: 12, fontWeight: 500,
+                color: COLORS.textMuted, background: "transparent",
+                border: `1px solid ${COLORS.border}`, borderRadius: 6, cursor: "pointer",
+                textDecoration: "none",
+              }}
+              title="Exportar todos os artigos para Excel"
+            >↓ Exportar</a>
+            {canEdit && (
+              <button
+                onClick={() => { setImportOpen(true); setImportFile(null); setImportPreview(null); setImportErr(""); }}
+                style={{
+                  padding: "7px 12px", fontSize: 12, fontWeight: 500,
+                  color: COLORS.textMuted, background: "transparent",
+                  border: `1px solid ${COLORS.border}`, borderRadius: 6, cursor: "pointer",
+                }}
+                title="Importar artigos de Excel"
+              >↑ Importar</button>
+            )}
             {canEdit && (
               <button
                 onClick={() => { setCreateOpen(true); setCreateErr(""); }}
@@ -523,6 +572,170 @@ export default function DashboardArtigos() {
                   style={{ padding: "9px 18px", fontSize: 13, color: COLORS.textMuted, background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: "pointer" }}
                 >Cancelar</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal importar */}
+      {importOpen && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={e => { if (e.target === e.currentTarget) setImportOpen(false); }}
+        >
+          <div style={{
+            background: COLORS.surface, border: `1px solid ${COLORS.border}`,
+            borderRadius: 16, padding: 28, width: 640, maxWidth: "95vw",
+            maxHeight: "90vh", display: "flex", flexDirection: "column",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: COLORS.text, margin: 0 }}>Importar artigos</h2>
+                <p style={{ fontSize: 12, color: COLORS.textMuted, margin: 0, marginTop: 4 }}>
+                  Sobrescreve artigos existentes (matching por SKU) e cria os novos.
+                </p>
+              </div>
+              <button onClick={() => setImportOpen(false)} style={{ background: "none", border: "none", color: COLORS.textMuted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Template download */}
+            <div style={{ padding: 12, background: COLORS.elevated, borderRadius: 8, marginBottom: 14, fontSize: 12, color: COLORS.textMuted }}>
+              Não tens um ficheiro? <a href="/api/products/template" download style={{ color: COLORS.teal, textDecoration: "underline" }}>Descarregar template</a> com a estrutura correcta.
+            </div>
+
+            {/* File picker */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, color: COLORS.textMuted, display: "block", marginBottom: 6 }}>Ficheiro Excel (.xlsx) *</label>
+              <input
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={e => { setImportFile(e.target.files?.[0] || null); setImportPreview(null); setImportErr(""); }}
+                style={{ width: "100%", padding: 8, fontSize: 12, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text }}
+              />
+              {importFile && (
+                <div style={{ fontSize: 11, color: COLORS.textDim, marginTop: 4, fontFamily: mono }}>
+                  {importFile.name} ({Math.round(importFile.size / 1024)} KB)
+                </div>
+              )}
+            </div>
+
+            {importErr && (
+              <div style={{ padding: 10, background: COLORS.coral + "15", border: `1px solid ${COLORS.coral}40`, borderRadius: 6, fontSize: 12, color: COLORS.coral, marginBottom: 12 }}>
+                {importErr}
+              </div>
+            )}
+
+            {/* Preview */}
+            {importPreview && (
+              <div style={{ flex: 1, overflowY: "auto", marginBottom: 14 }}>
+                <div style={{ padding: 12, background: COLORS.elevated, borderRadius: 8, marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text, marginBottom: 6 }}>Resumo</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 11 }}>
+                    <div>
+                      <div style={{ color: COLORS.textDim }}>Total linhas</div>
+                      <div style={{ color: COLORS.text, fontFamily: mono, fontSize: 14 }}>{importPreview.summary.total}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: COLORS.textDim }}>A criar</div>
+                      <div style={{ color: COLORS.teal, fontFamily: mono, fontSize: 14 }}>{importPreview.summary.criados}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: COLORS.textDim }}>A actualizar</div>
+                      <div style={{ color: COLORS.blue, fontFamily: mono, fontSize: 14 }}>{importPreview.summary.actualizados}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: COLORS.textDim }}>Erros</div>
+                      <div style={{ color: importPreview.summary.errors > 0 ? COLORS.coral : COLORS.textDim, fontFamily: mono, fontSize: 14 }}>{importPreview.summary.errors}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {importPreview.errors.length > 0 && (
+                  <div style={{ padding: 10, background: COLORS.coral + "15", border: `1px solid ${COLORS.coral}40`, borderRadius: 6, marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.coral, marginBottom: 4 }}>Linhas com erro (serão ignoradas)</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 11, color: COLORS.coral }}>
+                      {importPreview.errors.slice(0, 10).map(e => (
+                        <div key={e.row} style={{ fontFamily: mono }}>Linha {e.row}: {e.error}</div>
+                      ))}
+                      {importPreview.errors.length > 10 && <div>... e mais {importPreview.errors.length - 10}</div>}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 6, overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ background: COLORS.elevated }}>
+                        <th style={{ padding: "6px 8px", textAlign: "left", color: COLORS.textDim, fontWeight: 500 }}>Acção</th>
+                        <th style={{ padding: "6px 8px", textAlign: "left", color: COLORS.textDim, fontWeight: 500 }}>SKU</th>
+                        <th style={{ padding: "6px 8px", textAlign: "left", color: COLORS.textDim, fontWeight: 500 }}>Nome</th>
+                        <th style={{ padding: "6px 8px", textAlign: "center", color: COLORS.textDim, fontWeight: 500 }}>CTAB</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importPreview.preview.slice(0, 100).map(r => (
+                        <tr key={r.row} style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                          <td style={{ padding: "5px 8px" }}>
+                            <span style={{
+                              fontSize: 10, padding: "1px 6px", borderRadius: 3,
+                              background: r.action === "create" ? COLORS.tealDim : COLORS.blueDim,
+                              color: r.action === "create" ? COLORS.teal : COLORS.blue,
+                            }}>{r.action === "create" ? "criar" : "actualizar"}</span>
+                          </td>
+                          <td style={{ padding: "5px 8px", fontFamily: mono, color: COLORS.textMuted }}>{r.sku}</td>
+                          <td style={{ padding: "5px 8px", color: COLORS.text }}>{r.nome}</td>
+                          <td style={{ padding: "5px 8px", textAlign: "center", fontFamily: mono, color: COLORS.textDim }}>{r.ctabs}/3</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {importPreview.preview.length > 100 && (
+                    <div style={{ padding: 8, fontSize: 11, color: COLORS.textDim, textAlign: "center" }}>
+                      ... e mais {importPreview.preview.length - 100} linhas
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Acções */}
+            <div style={{ display: "flex", gap: 8 }}>
+              {!importPreview && (
+                <button
+                  onClick={() => doImport(true)}
+                  disabled={!importFile || importing}
+                  style={{
+                    flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600,
+                    background: importFile ? COLORS.teal : COLORS.border,
+                    color: importFile ? "#fff" : COLORS.textDim,
+                    border: "none", borderRadius: 8,
+                    cursor: importFile && !importing ? "pointer" : "not-allowed",
+                  }}
+                >{importing ? "A validar…" : "Validar ficheiro"}</button>
+              )}
+              {importPreview && (
+                <>
+                  <button
+                    onClick={() => { setImportPreview(null); setImportFile(null); }}
+                    style={{ padding: "9px 18px", fontSize: 13, color: COLORS.textMuted, background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: "pointer" }}
+                  >Recomeçar</button>
+                  <button
+                    onClick={() => doImport(false)}
+                    disabled={importing || importPreview.summary.total === 0}
+                    style={{
+                      flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600,
+                      background: importPreview.summary.total > 0 ? COLORS.teal : COLORS.border,
+                      color: "#fff", border: "none", borderRadius: 8,
+                      cursor: importing ? "wait" : "pointer",
+                      opacity: importing ? 0.6 : 1,
+                    }}
+                  >{importing ? "A importar…" : `Confirmar importação (${importPreview.summary.total - importPreview.summary.errors} artigos)`}</button>
+                </>
+              )}
+              <button
+                onClick={() => setImportOpen(false)}
+                style={{ padding: "9px 18px", fontSize: 13, color: COLORS.textMuted, background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: "pointer" }}
+              >Fechar</button>
             </div>
           </div>
         </div>

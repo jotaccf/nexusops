@@ -4,6 +4,26 @@ Formato: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.5.0] — 2026-06-08
+
+### Added
+- Importação de artigos via XLSX com fluxo seguro de 2 passos (validar → confirmar)
+- Exportação de todos os artigos para XLSX (com massas e CTAB por região)
+- Template XLSX descarregável com estrutura correcta e linha exemplo
+- API `/api/products/export` (GET) — devolve XLSX
+- API `/api/products/template` (GET) — devolve template vazio
+- API `/api/products/import` (POST) — aceita FormData com `file` e `dryRun`
+- Dependência `exceljs` para manipulação de ficheiros XLSX
+- Modal de importação com preview: total, criar, actualizar, erros
+- Validação rigorosa: SKU/Nome obrigatórios, números aceitam vírgula ou ponto
+- Botões "↓ Exportar" e "↑ Importar" na toolbar da página /dashboard/artigos
+
+### Security
+- Importação restrita a `role === "admin"` (gestor não pode importar)
+- CTABs vazios no XLSX não eliminam CTABs existentes na BD (preservativo)
+
+---
+
 ## [0.4.0] — 2026-06-08
 
 ### Added

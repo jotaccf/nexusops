@@ -47,6 +47,14 @@ Hub operacional para empresa de distribuição (master importer). Portugal, PT-P
 - [x] Correcção bug PT01 no NIF expedidor do e-DA
 - [x] Limpeza de config/page.js (1159 → 977 linhas)
 
+## [x] Fase 3.7 — Import/Export XLSX (concluída — 2026-06-08)
+
+- [x] Exportação de todos os artigos para XLSX
+- [x] Template XLSX descarregável
+- [x] Importação com fluxo de 2 passos (validar → confirmar)
+- [x] Preview do que vai ser criado/actualizado antes de executar
+- [x] Detecção e reporte de erros por linha
+
 ## [ ] Fase 4 — Funcionalidades avançadas
 
 - [ ] Edição inline de encomendas e leads
