@@ -183,6 +183,27 @@ export default function AppShell({ children, activeTab }) {
       <main style={{ padding: 24, maxWidth: 1400, margin: "0 auto" }}>
         {children}
       </main>
+
+      {/* Rodapé */}
+      <footer style={{
+        padding: "12px 24px", maxWidth: 1400, margin: "0 auto",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        fontSize: 10, color: COLORS.textDim, borderTop: `1px solid ${COLORS.border}`,
+        marginTop: 24,
+      }}>
+        <span style={{ fontFamily: mono }}>
+          NexusOps v{process.env.NEXT_PUBLIC_APP_VERSION || "?"}
+        </span>
+        <a
+          href="/api/health"
+          target="_blank"
+          rel="noopener"
+          style={{ color: COLORS.textDim, textDecoration: "none", fontFamily: mono }}
+          title="Ver estado do sistema"
+        >
+          /api/health
+        </a>
+      </footer>
     </div>
   );
 }

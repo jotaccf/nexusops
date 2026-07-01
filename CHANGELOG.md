@@ -4,6 +4,18 @@ Formato: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.7.0] — 2026-07-01
+
+### Added
+- Endpoint **`/api/health`** com status, versão, uptime, DB check, node, env, timezone
+  * Devolve `200` se saudável, `503` se BD offline (útil para healthchecks)
+- Rodapé fixo em todas as páginas com **versão actual** e link para `/api/health`
+- Versão injectada em build time via `next.config.mjs`:
+  * `process.env.APP_VERSION` (server-side)
+  * `process.env.NEXT_PUBLIC_APP_VERSION` (client-side)
+
+---
+
 ## [0.6.1] — 2026-07-01
 
 ### Fixed
