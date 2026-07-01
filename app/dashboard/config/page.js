@@ -76,6 +76,81 @@ export default function DashboardConfig() {
   const [userImapOpen, setUserImapOpen] = useState(false);
   const [showUserImapPass, setShowUserImapPass] = useState(false);
 
+  // Editar utilizador
+  const [editUser, setEditUser]         = useState(null); // user object ou null
+  const [editDraft, setEditDraft]       = useState(null);
+  const [editSaving, setEditSaving]     = useState(false);
+  const [editErr, setEditErr]           = useState("");
+  const [editImapOpen, setEditImapOpen] = useState(false);
+  const [editShowPass, setEditShowPass] = useState(false);
+  const [editShowImapPass, setEditShowImapPass] = useState(false);
+
+  function openEditUser(u) {
+    setEditUser(u);
+    setEditDraft({
+      name: u.name || "",
+      email: u.email || "",
+      initials: u.initials || "",
+      role: u.role || "logistica",
+      active: u.active !== false,
+      password: "",
+      imap_host: u.imap_host || "",
+      imap_port: u.imap_port || "993",
+      imap_user: u.imap_user || "",
+      imap_password: "",
+      imap_tls: u.imap_tls !== false,
+    });
+    setEditErr("");
+    setEditImapOpen(!!u.imap_host);
+    setEditShowPass(false);
+    setEditShowImapPass(false);
+  }
+
+  async function saveEditUser() {
+    if (!editUser || !editDraft) return;
+    setEditSaving(true);
+    setEditErr("");
+    try {
+      const body = {
+        name: editDraft.name,
+        email: editDraft.email,
+        initials: editDraft.initials || editDraft.name.split(" ").map(w => w[0]).join("").slice(0, 3).toUpperCase(),
+        role: editDraft.role,
+        active: editDraft.active,
+      };
+      if (editDraft.password?.length > 0) body.password = editDraft.password;
+      // IMAP (só envia se houver algo)
+      if (editImapOpen) {
+        body.imap_host = editDraft.imap_host || null;
+        body.imap_port = editDraft.imap_port || "993";
+        body.imap_user = editDraft.imap_user || null;
+        body.imap_tls  = editDraft.imap_tls;
+        if (editDraft.imap_password?.length > 0) body.imap_password = editDraft.imap_password;
+      }
+      const r = await fetch(`/api/users/${editUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (!r.ok) { setEditErr(data.error || `Erro ${r.status}`); return; }
+      setEditUser(null);
+      setEditDraft(null);
+      reloadUsers();
+    } catch (e) { setEditErr(e.message); }
+    finally { setEditSaving(false); }
+  }
+
+  async function deleteUserConfirm(u) {
+    if (!confirm(`Eliminar utilizador ${u.name} (${u.email})?\n\nEsta acção é permanente.`)) return;
+    const r = await fetch(`/api/users/${u.id}`, { method: "DELETE" });
+    if (r.ok) {
+      setEditUser(null);
+      setEditDraft(null);
+      reloadUsers();
+    }
+  }
+
   function reloadUsers() {
     fetch("/api/users").then(r => r.ok ? r.json() : []).then(d => setUserList(d || []));
   }
@@ -352,6 +427,17 @@ export default function DashboardConfig() {
                       </span>
                     </div>
                   </td>
+                  <td style={{ padding: "10px 0", width: 60, textAlign: "right" }}>
+                    <button
+                      onClick={() => openEditUser(user)}
+                      title="Editar utilizador"
+                      style={{
+                        padding: "4px 10px", fontSize: 11, color: COLORS.textMuted,
+                        background: "transparent", border: `1px solid ${COLORS.border}`,
+                        borderRadius: 6, cursor: "pointer",
+                      }}
+                    >Editar</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -454,7 +540,11 @@ export default function DashboardConfig() {
                       </div>
                       <div style={{ position: "relative" }}>
                         <label style={{ display: "block", fontSize: 11, color: COLORS.textMuted, marginBottom: 5 }}>Password email</label>
-                        <input type={showUserImapPass ? "text" : "password"} placeholder="••••••••" value={novoUser.imap_password}
+                        <input
+                          key={showUserImapPass ? "new-imap-text" : "new-imap-pass"}
+                          type={showUserImapPass ? "text" : "password"}
+                          autoComplete="new-password"
+                          placeholder="••••••••" value={novoUser.imap_password}
                           onChange={e => setNovoUser(p => ({ ...p, imap_password: e.target.value }))}
                           style={{ width: "100%", padding: "8px 46px 8px 10px", fontSize: 12, fontFamily: mono, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, outline: "none", boxSizing: "border-box" }}
                           onFocus={e => e.target.style.borderColor = COLORS.amber} onBlur={e => e.target.style.borderColor = COLORS.border}
@@ -917,6 +1007,138 @@ export default function DashboardConfig() {
           >Gerir artigos →</a>
         </div>
       </Card>
+
+      {/* Modal editar utilizador */}
+      {editUser && editDraft && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={e => { if (e.target === e.currentTarget) { setEditUser(null); setEditDraft(null); } }}
+        >
+          <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 28, width: 480, maxWidth: "94vw", maxHeight: "92vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: COLORS.text, margin: 0 }}>Editar utilizador</h2>
+                <p style={{ fontSize: 12, color: COLORS.textMuted, margin: 0, marginTop: 3 }}>{editUser.email}</p>
+              </div>
+              <button onClick={() => { setEditUser(null); setEditDraft(null); }} style={{ background: "none", border: "none", color: COLORS.textMuted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 11, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>Nome completo *</label>
+                <input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 10px", fontSize: 13, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>Email *</label>
+                  <input type="email" value={editDraft.email} onChange={e => setEditDraft(d => ({ ...d, email: e.target.value }))}
+                    style={{ width: "100%", padding: "8px 10px", fontSize: 13, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, outline: "none", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>Iniciais</label>
+                  <input value={editDraft.initials} onChange={e => setEditDraft(d => ({ ...d, initials: e.target.value.toUpperCase().slice(0, 3) }))} placeholder="Auto"
+                    style={{ width: "100%", padding: "8px 10px", fontSize: 13, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, outline: "none", boxSizing: "border-box", textAlign: "center", fontFamily: mono }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>Nova password <span style={{ color: COLORS.textDim }}>(deixar vazio para não alterar)</span></label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    key={editShowPass ? "pw-text" : "pw-pass"}
+                    type={editShowPass ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={editDraft.password}
+                    onChange={e => setEditDraft(d => ({ ...d, password: e.target.value }))}
+                    placeholder="••••••••"
+                    style={{ flex: 1, padding: "8px 10px", fontSize: 13, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, outline: "none", boxSizing: "border-box" }} />
+                  <button type="button" onClick={() => setEditShowPass(v => !v)}
+                    style={{ padding: "0 12px", fontSize: 11, color: COLORS.textMuted, background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: "pointer" }}>
+                    {editShowPass ? "Ocultar" : "Mostrar"}
+                  </button>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>Perfil *</label>
+                  <select value={editDraft.role} onChange={e => setEditDraft(d => ({ ...d, role: e.target.value }))}
+                    style={{ width: "100%", padding: "8px 10px", fontSize: 13, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, outline: "none", boxSizing: "border-box" }}>
+                    <option value="logistica">Logística</option>
+                    <option value="gestor">Gestor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: COLORS.textMuted, display: "block", marginBottom: 4 }}>Estado</label>
+                  <button onClick={() => setEditDraft(d => ({ ...d, active: !d.active }))} type="button"
+                    style={{ width: "100%", padding: "8px 10px", fontSize: 13, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: editDraft.active ? COLORS.green : COLORS.coral, cursor: "pointer", textAlign: "left" }}>
+                    {editDraft.active ? "● Activo" : "○ Inactivo"}
+                  </button>
+                </div>
+              </div>
+
+              {/* IMAP colapsável */}
+              <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 12 }}>
+                <button type="button" onClick={() => setEditImapOpen(v => !v)}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: 0, background: "transparent", border: "none", cursor: "pointer", color: COLORS.textMuted, fontSize: 12 }}>
+                  <span>Email pessoal IMAP (opcional)</span>
+                  <span style={{ fontFamily: mono }}>{editImapOpen ? "▾" : "▸"}</span>
+                </button>
+                {editImapOpen && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 80px", gap: 8 }}>
+                      <input value={editDraft.imap_host} onChange={e => setEditDraft(d => ({ ...d, imap_host: e.target.value }))} placeholder="Servidor IMAP (host)"
+                        style={{ padding: "7px 10px", fontSize: 12, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, outline: "none", boxSizing: "border-box" }} />
+                      <input value={editDraft.imap_port} onChange={e => setEditDraft(d => ({ ...d, imap_port: e.target.value }))} placeholder="993"
+                        style={{ padding: "7px 10px", fontSize: 12, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, outline: "none", boxSizing: "border-box", textAlign: "center", fontFamily: mono }} />
+                    </div>
+                    <input value={editDraft.imap_user} onChange={e => setEditDraft(d => ({ ...d, imap_user: e.target.value }))} placeholder="Utilizador IMAP"
+                      style={{ padding: "7px 10px", fontSize: 12, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, outline: "none", boxSizing: "border-box" }} />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        key={editShowImapPass ? "imap-text" : "imap-pass"}
+                        type={editShowImapPass ? "text" : "password"}
+                        autoComplete="new-password"
+                        value={editDraft.imap_password}
+                        onChange={e => setEditDraft(d => ({ ...d, imap_password: e.target.value }))}
+                        placeholder="Password IMAP (vazio = não alterar)"
+                        style={{ flex: 1, padding: "7px 10px", fontSize: 12, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, outline: "none", boxSizing: "border-box" }} />
+                      <button type="button" onClick={() => setEditShowImapPass(v => !v)}
+                        style={{ padding: "0 10px", fontSize: 11, color: COLORS.textMuted, background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 6, cursor: "pointer" }}>
+                        {editShowImapPass ? "Ocultar" : "Mostrar"}
+                      </button>
+                    </div>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.textMuted, cursor: "pointer" }}>
+                      <input type="checkbox" checked={editDraft.imap_tls} onChange={e => setEditDraft(d => ({ ...d, imap_tls: e.target.checked }))} />
+                      TLS/SSL
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {editErr && <div style={{ fontSize: 12, color: COLORS.coral, padding: 8, background: COLORS.coral + "15", border: `1px solid ${COLORS.coral}40`, borderRadius: 6 }}>{editErr}</div>}
+
+              {/* Acções */}
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button onClick={saveEditUser} disabled={editSaving || !editDraft.name || !editDraft.email}
+                  style={{ flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600, background: COLORS.teal, color: "#fff", border: "none", borderRadius: 8, cursor: editSaving ? "wait" : "pointer", opacity: editSaving ? 0.6 : 1 }}>
+                  {editSaving ? "A guardar…" : "Guardar alterações"}
+                </button>
+                <button onClick={() => { setEditUser(null); setEditDraft(null); }}
+                  style={{ padding: "9px 18px", fontSize: 13, color: COLORS.textMuted, background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: "pointer" }}>
+                  Cancelar
+                </button>
+              </div>
+              <div style={{ paddingTop: 10, borderTop: `1px solid ${COLORS.border}` }}>
+                <button onClick={() => deleteUserConfirm(editUser)}
+                  style={{ width: "100%", padding: "7px 0", fontSize: 11, color: COLORS.coral, background: "transparent", border: `1px solid ${COLORS.coral}40`, borderRadius: 6, cursor: "pointer" }}>
+                  Eliminar utilizador
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </AppShell>
   );

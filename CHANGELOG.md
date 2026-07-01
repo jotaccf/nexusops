@@ -4,6 +4,34 @@ Formato: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.6.0] — 2026-07-01
+
+### Added
+- Drawer de artigos com **estado draft**: alterações acumuladas localmente antes de guardar
+- Indicador visual "• alterado" no cabeçalho do drawer quando há alterações pendentes
+- Botões **"Guardar alterações"** e **"Descartar"** sticky no fundo do drawer
+- Aviso de confirmação ao mudar de artigo ou fechar drawer com alterações não guardadas
+- Modal completo de **edição de utilizadores** no dashboard de configuração
+- Editar nome, email, iniciais, perfil (role), password, estado activo
+- Editar configuração IMAP pessoal do utilizador (colapsável)
+- Botão "Editar" em cada linha da tabela de utilizadores
+
+### Changed
+- Drawer de artigos deixou de fazer auto-save on blur — todas as alterações precisam de confirmação explícita
+- API `PATCH /api/users/[id]` estendida para aceitar `name`, `initials`, `email` e `password` (com bcrypt hash)
+
+### Fixed
+- **Safari cookie fix**: `secure: true` detectado dinamicamente (`x-forwarded-proto` ou protocolo do URL) em vez de estar hardcoded quando `NODE_ENV=production` — Safari rejeitava silenciosamente cookies secure em HTTP
+- **Toggle mostrar password**: browsers com gestor de passwords bloqueavam a mudança de type — resolvido com `key` diferente para forçar re-mount + `autoComplete="new-password"`
+- Password IMAP no formulário de criação com o mesmo padrão de re-mount
+
+### Security
+- Password de login usa `bcrypt.hash(12)` no servidor ao actualizar via PATCH
+- Email duplicado devolve `409 Email já existe`
+- Só admin pode editar/eliminar utilizadores
+
+---
+
 ## [0.5.0] — 2026-06-08
 
 ### Added

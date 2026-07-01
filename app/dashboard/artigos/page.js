@@ -72,6 +72,55 @@ export default function DashboardArtigos() {
   // Status save (drawer)
   const [savedAt, setSavedAt] = useState(null);
 
+  // Draft do drawer — buffer local antes de guardar
+  const [draft, setDraft]         = useState(null);
+  const [saving, setSaving]       = useState(false);
+  const [saveErr, setSaveErr]     = useState("");
+
+  // Inicializa/reinicia o draft sempre que o produto seleccionado muda
+  useEffect(() => {
+    if (!selected) { setDraft(null); return; }
+    setDraft({
+      sku:              selected.sku,
+      nome:             selected.nome,
+      descricao:        selected.descricao || "",
+      unidade:          selected.unidade || "un",
+      active:           selected.active !== false,
+      massa_bruta:      selected.massa_bruta ?? "",
+      massa_liquida:    selected.massa_liquida ?? "",
+      massa_tributavel: selected.massa_tributavel ?? "",
+      ctab: {
+        CON: (selected.ctab || []).find(c => c.regiao === "CON") || null,
+        RAM: (selected.ctab || []).find(c => c.regiao === "RAM") || null,
+        RAA: (selected.ctab || []).find(c => c.regiao === "RAA") || null,
+      },
+    });
+    setSaveErr("");
+  }, [selected?.id, selected?.updated_at]);
+
+  // Detecta se há alterações pendentes
+  function computeDirty(draft, selected) {
+    if (!draft || !selected) return false;
+    const norm = v => (v == null ? "" : String(v));
+    if (norm(draft.sku) !== norm(selected.sku)) return true;
+    if (norm(draft.nome) !== norm(selected.nome)) return true;
+    if (norm(draft.descricao) !== norm(selected.descricao || "")) return true;
+    if (norm(draft.unidade) !== norm(selected.unidade || "un")) return true;
+    if (draft.active !== (selected.active !== false)) return true;
+    for (const f of ["massa_bruta", "massa_liquida", "massa_tributavel"]) {
+      if (norm(draft[f]) !== norm(selected[f] ?? "")) return true;
+    }
+    for (const r of ["CON", "RAM", "RAA"]) {
+      const dc = draft.ctab[r], oc = (selected.ctab || []).find(c => c.regiao === r);
+      const fields = ["ctab_code", "descricao", "taxa", "unidade_iec"];
+      for (const f of fields) {
+        if (norm(dc?.[f]) !== norm(oc?.[f])) return true;
+      }
+    }
+    return false;
+  }
+  const dirty = computeDirty(draft, selected);
+
   const reload = useCallback(() => {
     setLoading(true);
     fetch("/api/products").then(r => r.ok ? r.json() : []).then(d => {
@@ -151,46 +200,104 @@ export default function DashboardArtigos() {
     finally { setCreateSaving(false); }
   }
 
-  async function updateField(id, fields) {
-    const res = await fetch(`/api/products/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(fields),
-    });
-    if (res.ok) {
+  // Guardar todas as alterações pendentes do draft
+  async function saveDraft() {
+    if (!draft || !selected) return;
+    setSaving(true);
+    setSaveErr("");
+    try {
+      // 1. Campos do produto
+      const productFields = {};
+      const norm = v => (v == null ? "" : String(v));
+      if (norm(draft.sku) !== norm(selected.sku)) productFields.sku = draft.sku;
+      if (norm(draft.nome) !== norm(selected.nome)) productFields.nome = draft.nome;
+      if (norm(draft.descricao) !== norm(selected.descricao || "")) productFields.descricao = draft.descricao;
+      if (norm(draft.unidade) !== norm(selected.unidade || "un")) productFields.unidade = draft.unidade;
+      if (draft.active !== (selected.active !== false)) productFields.active = draft.active;
+      for (const f of ["massa_bruta", "massa_liquida", "massa_tributavel"]) {
+        if (norm(draft[f]) !== norm(selected[f] ?? "")) {
+          productFields[f] = draft[f] === "" ? null : draft[f];
+        }
+      }
+
+      if (Object.keys(productFields).length > 0) {
+        const r = await fetch(`/api/products/${selected.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(productFields),
+        });
+        if (!r.ok) {
+          const data = await r.json().catch(() => ({}));
+          throw new Error(data.error || `Erro ${r.status} ao guardar produto`);
+        }
+      }
+
+      // 2. CTAB por região
+      for (const r of ["CON", "RAM", "RAA"]) {
+        const dc = draft.ctab[r];
+        const oc = (selected.ctab || []).find(c => c.regiao === r);
+        const fields = ["ctab_code", "descricao", "taxa", "unidade_iec"];
+        const changed = fields.some(f => norm(dc?.[f]) !== norm(oc?.[f]));
+        if (!changed) continue;
+
+        const newCode = dc?.ctab_code?.trim() || "";
+        if (!newCode && oc) {
+          // remover
+          await fetch(`/api/products/${selected.id}/ctab?regiao=${r}`, { method: "DELETE" });
+        } else if (newCode) {
+          const res = await fetch(`/api/products/${selected.id}/ctab`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              regiao: r,
+              ctab_code: newCode,
+              descricao: dc?.descricao || null,
+              taxa: dc?.taxa === "" ? null : dc?.taxa,
+              unidade_iec: dc?.unidade_iec || null,
+            }),
+          });
+          if (!res.ok) throw new Error(`Erro ao guardar CTAB ${r}`);
+        }
+      }
+
       setSavedAt(new Date());
       reload();
+    } catch (e) {
+      setSaveErr(e.message);
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function upsertCtab(productId, regiao, fields) {
-    const product = products.find(p => p.id === productId);
-    const existing = (product?.ctab || []).find(c => c.regiao === regiao);
-    const body = {
-      regiao,
-      ctab_code: fields.ctab_code ?? existing?.ctab_code ?? "",
-      descricao: fields.descricao ?? existing?.descricao,
-      taxa:      fields.taxa ?? existing?.taxa,
-      unidade_iec: fields.unidade_iec ?? existing?.unidade_iec,
-    };
-    if (!body.ctab_code) {
-      // sem código → eliminar
-      if (existing) {
-        await fetch(`/api/products/${productId}/ctab?regiao=${regiao}`, { method: "DELETE" });
-        setSavedAt(new Date());
-        reload();
-      }
-      return;
-    }
-    const res = await fetch(`/api/products/${productId}/ctab`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+  // Descartar alterações — restaura draft do produto original
+  function discardDraft() {
+    if (!selected) return;
+    setDraft({
+      sku:              selected.sku,
+      nome:             selected.nome,
+      descricao:        selected.descricao || "",
+      unidade:          selected.unidade || "un",
+      active:           selected.active !== false,
+      massa_bruta:      selected.massa_bruta ?? "",
+      massa_liquida:    selected.massa_liquida ?? "",
+      massa_tributavel: selected.massa_tributavel ?? "",
+      ctab: {
+        CON: (selected.ctab || []).find(c => c.regiao === "CON") || null,
+        RAM: (selected.ctab || []).find(c => c.regiao === "RAM") || null,
+        RAA: (selected.ctab || []).find(c => c.regiao === "RAA") || null,
+      },
     });
-    if (res.ok) {
-      setSavedAt(new Date());
-      reload();
-    }
+    setSaveErr("");
+  }
+
+  // Wrapper para mudar de artigo com aviso se houver alterações
+  function selectProduct(p) {
+    if (dirty && !window.confirm("Tens alterações não guardadas. Descartá-las?")) return;
+    setSelected(p);
+  }
+  function closeDrawer() {
+    if (dirty && !window.confirm("Tens alterações não guardadas. Fechar mesmo assim?")) return;
+    setSelected(null);
   }
 
   async function doImport(dryRun) {
@@ -324,7 +431,7 @@ export default function DashboardArtigos() {
                     return (
                       <tr
                         key={p.id}
-                        onClick={() => setSelected(p)}
+                        onClick={() => selectProduct(p)}
                         style={{
                           borderBottom: `1px solid ${COLORS.border}`,
                           background: isSelected ? COLORS.tealDim : "transparent",
@@ -366,18 +473,21 @@ export default function DashboardArtigos() {
         </Card>
 
         {/* Detalhe — drawer lateral */}
-        {selected && (
-          <Card style={{ alignSelf: "start", maxHeight: "calc(100vh - 160px)", overflowY: "auto" }}>
+        {selected && draft && (
+          <Card style={{ alignSelf: "start", maxHeight: "calc(100vh - 160px)", overflowY: "auto", position: "relative" }}>
             {/* Cabeçalho */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 2 }}>{selected.nome}</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 2 }}>
+                  {selected.nome}
+                  {dirty && <span style={{ marginLeft: 8, fontSize: 10, color: COLORS.amber, fontWeight: 500 }}>• alterado</span>}
+                </div>
                 <div style={{ fontSize: 11, fontFamily: mono, color: COLORS.textDim }}>{selected.sku}</div>
               </div>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: COLORS.textMuted, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+              <button onClick={closeDrawer} style={{ background: "none", border: "none", color: COLORS.textMuted, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
 
-            {savedAt && (
+            {savedAt && !dirty && (
               <div style={{ fontSize: 10, color: COLORS.green, marginBottom: 10, fontFamily: mono }}>
                 ✓ Guardado às {savedAt.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
               </div>
@@ -395,53 +505,41 @@ export default function DashboardArtigos() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div>
                   <label style={labelStyle}>SKU</label>
-                  <input
-                    defaultValue={selected.sku}
-                    disabled={!canEdit}
-                    onBlur={e => e.target.value !== selected.sku && updateField(selected.id, { sku: e.target.value })}
-                    style={inputStyle}
-                  />
+                  <input value={draft.sku} disabled={!canEdit}
+                    onChange={e => setDraft(d => ({ ...d, sku: e.target.value }))}
+                    style={inputStyle} />
                 </div>
                 <div>
                   <label style={labelStyle}>Nome</label>
-                  <input
-                    defaultValue={selected.nome}
-                    disabled={!canEdit}
-                    onBlur={e => e.target.value !== selected.nome && updateField(selected.id, { nome: e.target.value })}
-                    style={inputStyle}
-                  />
+                  <input value={draft.nome} disabled={!canEdit}
+                    onChange={e => setDraft(d => ({ ...d, nome: e.target.value }))}
+                    style={inputStyle} />
                 </div>
                 <div>
                   <label style={labelStyle}>Descrição</label>
-                  <input
-                    defaultValue={selected.descricao || ""}
-                    disabled={!canEdit}
-                    onBlur={e => e.target.value !== (selected.descricao || "") && updateField(selected.id, { descricao: e.target.value })}
-                    style={inputStyle}
-                  />
+                  <input value={draft.descricao} disabled={!canEdit}
+                    onChange={e => setDraft(d => ({ ...d, descricao: e.target.value }))}
+                    style={inputStyle} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <div>
                     <label style={labelStyle}>Unidade</label>
-                    <input
-                      defaultValue={selected.unidade || "un"}
-                      disabled={!canEdit}
-                      onBlur={e => e.target.value !== selected.unidade && updateField(selected.id, { unidade: e.target.value })}
-                      style={inputStyle}
-                    />
+                    <input value={draft.unidade} disabled={!canEdit}
+                      onChange={e => setDraft(d => ({ ...d, unidade: e.target.value }))}
+                      style={inputStyle} />
                   </div>
                   <div>
                     <label style={labelStyle}>Estado</label>
                     <button
-                      onClick={() => canEdit && updateField(selected.id, { active: !selected.active })}
+                      onClick={() => canEdit && setDraft(d => ({ ...d, active: !d.active }))}
                       disabled={!canEdit}
                       style={{
                         ...inputStyle,
                         cursor: canEdit ? "pointer" : "default",
-                        color: selected.active ? COLORS.green : COLORS.coral,
+                        color: draft.active ? COLORS.green : COLORS.coral,
                         textAlign: "left",
                       }}
-                    >{selected.active ? "● Activo" : "○ Inactivo"}</button>
+                    >{draft.active ? "● Activo" : "○ Inactivo"}</button>
                   </div>
                 </div>
               </div>
@@ -458,13 +556,9 @@ export default function DashboardArtigos() {
                       <label style={labelStyle}>{labels[field]}</label>
                       <input
                         type="number" step="0.0001"
-                        defaultValue={selected[field] || ""}
+                        value={draft[field]}
                         disabled={!canEdit}
-                        onBlur={e => {
-                          const v = e.target.value || null;
-                          if (String(v) !== String(selected[field] || ""))
-                            updateField(selected.id, { [field]: v });
-                        }}
+                        onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))}
                         style={inputStyle}
                       />
                     </div>
@@ -478,35 +572,45 @@ export default function DashboardArtigos() {
               <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>Códigos CTAB por região</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {REGIOES.map(r => {
-                  const c = (selected.ctab || []).find(x => x.regiao === r.id);
+                  const dc = draft.ctab[r.id] || {};
+                  const hasCode = !!dc.ctab_code?.trim();
+                  const setCtabField = (field, value) => {
+                    setDraft(d => ({
+                      ...d,
+                      ctab: {
+                        ...d.ctab,
+                        [r.id]: { ...(d.ctab[r.id] || { regiao: r.id }), [field]: value },
+                      },
+                    }));
+                  };
                   return (
                     <div key={r.id} style={{ padding: 10, background: COLORS.elevated, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.text, marginBottom: 6 }}>
                         {r.label} <span style={{ fontFamily: mono, color: COLORS.textDim, fontWeight: 400 }}>({r.id})</span>
-                        {c && <span style={{ marginLeft: 8, fontSize: 10, color: COLORS.teal }}>✓</span>}
+                        {hasCode && <span style={{ marginLeft: 8, fontSize: 10, color: COLORS.teal }}>✓</span>}
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         <input
                           placeholder="Código CTAB"
-                          defaultValue={c?.ctab_code || ""}
+                          value={dc.ctab_code || ""}
                           disabled={!canEdit}
-                          onBlur={e => e.target.value !== (c?.ctab_code || "") && upsertCtab(selected.id, r.id, { ctab_code: e.target.value })}
+                          onChange={e => setCtabField("ctab_code", e.target.value)}
                           style={inputStyle}
                         />
                         <div style={{ display: "flex", gap: 6 }}>
                           <input
                             placeholder="Taxa"
                             type="number" step="0.0001"
-                            defaultValue={c?.taxa || ""}
-                            disabled={!canEdit || !c}
-                            onBlur={e => c && String(e.target.value) !== String(c?.taxa || "") && upsertCtab(selected.id, r.id, { taxa: e.target.value || null })}
+                            value={dc.taxa ?? ""}
+                            disabled={!canEdit || !hasCode}
+                            onChange={e => setCtabField("taxa", e.target.value)}
                             style={{ ...inputStyle, flex: 1 }}
                           />
                           <input
                             placeholder="Unidade IEC"
-                            defaultValue={c?.unidade_iec || ""}
-                            disabled={!canEdit || !c}
-                            onBlur={e => c && e.target.value !== (c?.unidade_iec || "") && upsertCtab(selected.id, r.id, { unidade_iec: e.target.value })}
+                            value={dc.unidade_iec || ""}
+                            disabled={!canEdit || !hasCode}
+                            onChange={e => setCtabField("unidade_iec", e.target.value)}
                             style={{ ...inputStyle, flex: 1 }}
                           />
                         </div>
@@ -517,15 +621,57 @@ export default function DashboardArtigos() {
               </div>
             </div>
 
+            {/* Erro de save */}
+            {saveErr && (
+              <div style={{ padding: 8, marginBottom: 12, background: COLORS.coral + "15", border: `1px solid ${COLORS.coral}40`, borderRadius: 6, fontSize: 11, color: COLORS.coral }}>
+                {saveErr}
+              </div>
+            )}
+
+            {/* Botões Guardar / Descartar */}
+            {canEdit && (
+              <div style={{
+                position: "sticky", bottom: -24, marginBottom: -24, marginTop: 4,
+                padding: "12px 0", background: COLORS.surface,
+                borderTop: `1px solid ${dirty ? COLORS.amber + "40" : COLORS.border}`,
+                display: "flex", gap: 8,
+              }}>
+                <button
+                  onClick={saveDraft}
+                  disabled={!dirty || saving}
+                  style={{
+                    flex: 1, padding: "9px 0", fontSize: 12, fontWeight: 600,
+                    background: dirty ? (saving ? COLORS.border : COLORS.teal) : COLORS.border,
+                    color: dirty ? "#fff" : COLORS.textDim,
+                    border: "none", borderRadius: 6,
+                    cursor: dirty && !saving ? "pointer" : "not-allowed",
+                  }}
+                >{saving ? "A guardar…" : dirty ? "Guardar alterações" : "Sem alterações"}</button>
+                <button
+                  onClick={discardDraft}
+                  disabled={!dirty || saving}
+                  style={{
+                    padding: "9px 14px", fontSize: 12,
+                    color: dirty ? COLORS.textMuted : COLORS.textDim,
+                    background: "transparent",
+                    border: `1px solid ${COLORS.border}`, borderRadius: 6,
+                    cursor: dirty && !saving ? "pointer" : "not-allowed",
+                  }}
+                >Descartar</button>
+              </div>
+            )}
+
             {/* Eliminar */}
             {canEdit && (
-              <div style={{ paddingTop: 12, borderTop: `1px solid ${COLORS.border}` }}>
+              <div style={{ paddingTop: 16, marginTop: 12, borderTop: `1px solid ${COLORS.border}` }}>
                 <button
                   onClick={() => deleteProduct(selected.id, selected.sku)}
+                  disabled={saving}
                   style={{
                     width: "100%", padding: "8px 0", fontSize: 12,
                     color: COLORS.coral, background: "transparent",
-                    border: `1px solid ${COLORS.coral}40`, borderRadius: 6, cursor: "pointer",
+                    border: `1px solid ${COLORS.coral}40`, borderRadius: 6,
+                    cursor: saving ? "not-allowed" : "pointer",
                   }}
                 >Eliminar artigo</button>
               </div>

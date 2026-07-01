@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import bcrypt from "bcryptjs";
 import { verifyToken, COOKIE_NAME } from "../../../../lib/auth";
 import getDb from "../../../../lib/db";
 
@@ -11,7 +12,7 @@ async function requireAdmin() {
   return user;
 }
 
-// PATCH /api/users/[id] — actualizar active, role, imap pessoal
+// PATCH /api/users/[id] — actualizar dados do utilizador
 export async function PATCH(req, { params }) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
@@ -23,7 +24,7 @@ export async function PATCH(req, { params }) {
   }
 
   const sql = getDb();
-  const allowed = ["active", "role", "imap_host", "imap_port", "imap_user", "imap_tls"];
+  const allowed = ["name", "initials", "email", "active", "role", "imap_host", "imap_port", "imap_user", "imap_tls"];
   const sets = [];
   const values = [id];
 
@@ -33,6 +34,14 @@ export async function PATCH(req, { params }) {
       values.push(body[field]);
     }
   }
+
+  // Password do utilizador (login) — hash com bcrypt se fornecida
+  if (body.password && body.password.length > 0) {
+    const hash = await bcrypt.hash(body.password, 12);
+    sets.push(`password_hash = $${values.length + 1}`);
+    values.push(hash);
+  }
+
   // Password IMAP tratada separadamente (nunca devolver em SELECT)
   if (body.imap_password && body.imap_password !== "••••••••") {
     sets.push(`imap_password = $${values.length + 1}`);
@@ -43,10 +52,16 @@ export async function PATCH(req, { params }) {
     return NextResponse.json({ error: "Nenhum campo para actualizar" }, { status: 400 });
   }
 
-  const rows = await sql.unsafe(
-    `UPDATE users SET ${sets.join(", ")} WHERE id = $1 RETURNING id, name, initials, email, role, active, imap_host, imap_port, imap_user, imap_tls`,
-    values
-  );
+  let rows;
+  try {
+    rows = await sql.unsafe(
+      `UPDATE users SET ${sets.join(", ")} WHERE id = $1 RETURNING id, name, initials, email, role, active, imap_host, imap_port, imap_user, imap_tls`,
+      values
+    );
+  } catch (err) {
+    if (err.code === "23505") return NextResponse.json({ error: "Email já existe" }, { status: 409 });
+    throw err;
+  }
 
   if (!rows.length) return NextResponse.json({ error: "Utilizador não encontrado" }, { status: 404 });
   return NextResponse.json(rows[0]);

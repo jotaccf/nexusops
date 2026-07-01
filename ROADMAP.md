@@ -55,6 +55,14 @@ Hub operacional para empresa de distribuição (master importer). Portugal, PT-P
 - [x] Preview do que vai ser criado/actualizado antes de executar
 - [x] Detecção e reporte de erros por linha
 
+## [x] Fase 3.8 — Melhorias UX (concluída — 2026-07-01)
+
+- [x] Drawer de artigos com draft + Guardar/Descartar (evita gravar erros)
+- [x] Aviso ao sair com alterações pendentes
+- [x] Edição completa de utilizadores (nome, email, password, role, IMAP)
+- [x] Fix Safari: cookie secure detectado dinamicamente
+- [x] Fix toggle mostrar password (re-mount + autoComplete)
+
 ## [ ] Fase 4 — Funcionalidades avançadas
 
 - [ ] Edição inline de encomendas e leads
