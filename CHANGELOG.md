@@ -4,6 +4,19 @@ Formato: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.6.1] — 2026-07-01
+
+### Fixed
+- Drawer de artigos: comparador de dirty devolvia falso positivo em campos numéricos
+  * BD guarda `NUMERIC` como string com trailing zeros (`"0.0350"`)
+  * `<input type="number">` normaliza visualmente para `0.035` e dispara `onChange`
+  * Comparação de strings dizia `dirty=true` sem o utilizador tocar em nada
+  * Fix: comparação numérica com `parseFloat` + tolerância `< 1e-9`
+- Aplicado em `computeDirty()` (badge "alterado" e aviso ao fechar) e em `saveDraft()` (que campos enviar no PATCH)
+- Corrige aviso "Tens alterações não guardadas" ao abrir/fechar artigos sem editar
+
+---
+
 ## [0.6.0] — 2026-07-01
 
 ### Added

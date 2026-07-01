@@ -102,20 +102,29 @@ export default function DashboardArtigos() {
   function computeDirty(draft, selected) {
     if (!draft || !selected) return false;
     const norm = v => (v == null ? "" : String(v));
+    // Comparação numérica tolerante — evita falsos positivos por normalização
+    // do browser (ex: "0.0350" → "0.035" no input type=number)
+    const eqNum = (a, b) => {
+      const na = a === "" || a == null ? null : parseFloat(a);
+      const nb = b === "" || b == null ? null : parseFloat(b);
+      if (na === null && nb === null) return true;
+      if (na === null || nb === null) return false;
+      return Math.abs(na - nb) < 1e-9;
+    };
     if (norm(draft.sku) !== norm(selected.sku)) return true;
     if (norm(draft.nome) !== norm(selected.nome)) return true;
     if (norm(draft.descricao) !== norm(selected.descricao || "")) return true;
     if (norm(draft.unidade) !== norm(selected.unidade || "un")) return true;
     if (draft.active !== (selected.active !== false)) return true;
     for (const f of ["massa_bruta", "massa_liquida", "massa_tributavel"]) {
-      if (norm(draft[f]) !== norm(selected[f] ?? "")) return true;
+      if (!eqNum(draft[f], selected[f])) return true;
     }
     for (const r of ["CON", "RAM", "RAA"]) {
       const dc = draft.ctab[r], oc = (selected.ctab || []).find(c => c.regiao === r);
-      const fields = ["ctab_code", "descricao", "taxa", "unidade_iec"];
-      for (const f of fields) {
-        if (norm(dc?.[f]) !== norm(oc?.[f])) return true;
-      }
+      if (norm(dc?.ctab_code) !== norm(oc?.ctab_code)) return true;
+      if (norm(dc?.descricao) !== norm(oc?.descricao)) return true;
+      if (norm(dc?.unidade_iec) !== norm(oc?.unidade_iec)) return true;
+      if (!eqNum(dc?.taxa, oc?.taxa)) return true;
     }
     return false;
   }
@@ -209,13 +218,20 @@ export default function DashboardArtigos() {
       // 1. Campos do produto
       const productFields = {};
       const norm = v => (v == null ? "" : String(v));
+      const eqNum = (a, b) => {
+        const na = a === "" || a == null ? null : parseFloat(a);
+        const nb = b === "" || b == null ? null : parseFloat(b);
+        if (na === null && nb === null) return true;
+        if (na === null || nb === null) return false;
+        return Math.abs(na - nb) < 1e-9;
+      };
       if (norm(draft.sku) !== norm(selected.sku)) productFields.sku = draft.sku;
       if (norm(draft.nome) !== norm(selected.nome)) productFields.nome = draft.nome;
       if (norm(draft.descricao) !== norm(selected.descricao || "")) productFields.descricao = draft.descricao;
       if (norm(draft.unidade) !== norm(selected.unidade || "un")) productFields.unidade = draft.unidade;
       if (draft.active !== (selected.active !== false)) productFields.active = draft.active;
       for (const f of ["massa_bruta", "massa_liquida", "massa_tributavel"]) {
-        if (norm(draft[f]) !== norm(selected[f] ?? "")) {
+        if (!eqNum(draft[f], selected[f])) {
           productFields[f] = draft[f] === "" ? null : draft[f];
         }
       }
@@ -236,8 +252,11 @@ export default function DashboardArtigos() {
       for (const r of ["CON", "RAM", "RAA"]) {
         const dc = draft.ctab[r];
         const oc = (selected.ctab || []).find(c => c.regiao === r);
-        const fields = ["ctab_code", "descricao", "taxa", "unidade_iec"];
-        const changed = fields.some(f => norm(dc?.[f]) !== norm(oc?.[f]));
+        const changed =
+          norm(dc?.ctab_code)   !== norm(oc?.ctab_code)   ||
+          norm(dc?.descricao)   !== norm(oc?.descricao)   ||
+          norm(dc?.unidade_iec) !== norm(oc?.unidade_iec) ||
+          !eqNum(dc?.taxa, oc?.taxa);
         if (!changed) continue;
 
         const newCode = dc?.ctab_code?.trim() || "";
